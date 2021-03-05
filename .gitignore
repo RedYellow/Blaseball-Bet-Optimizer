@@ -1,0 +1,4 @@
+auth.yaml
+.git/**
+.DS_Store
+.spyproject
