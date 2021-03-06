@@ -27,29 +27,31 @@ from docopt import docopt
 def get_day_season():
     r = requests.get("https://www.blaseball.com/events/streamData").text
     # TODO: scrape from reblased instead? this shit is super big, for just two numbers
+    # can't do it with reblased
     season = re.findall("\"season\":(\d+)", r)[0]
     day = re.findall("\"day\":(\d+)", r)[0]
     return int(day)+2, int(season)+1 #note that indexes count from 0 and we want one day in the future
     # this returns the "actual" name of the day/season
 
-def get_odds_dict(day, season):
+def get_odds_dict(js, day, season):
     # TODO: make so that this page is not downloaded twice between this one and get_odds()
-    js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
+    # js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
     home_odds = [(game["homeOdds"]*100, game["homeTeamName"]) for game in js]
     away_odds = [(game["awayOdds"]*100, game["awayTeamName"]) for game in js]
     return {i[0]:i[1] for i in home_odds+away_odds}
 
-def get_odds(day, season):
+def get_odds(js, day, season):
     #remember season  and day are counted from 0, so are 1 less than the actual number
-    js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
+    # js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
     return [(max(game["homeOdds"], game["awayOdds"])*100) for game in js]
 
 def main(coins, currentMaxBet, day=None, season=None):
     if not day and not season:
         day, season = get_day_season()
     print("This is season {}, day {}".format(season, day))
-    oddsDict = get_odds_dict(day, season)
-    gameOdds = get_odds(day, season)
+    js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
+    oddsDict = get_odds_dict(js, day, season)
+    gameOdds = get_odds(js, day, season)
     # coins =   10979
     # currentMaxBet = 640
     EVMode = True
