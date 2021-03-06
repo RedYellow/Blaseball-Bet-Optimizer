@@ -1,8 +1,23 @@
+""" Blaseball Bet Optimizer
+
+Usage:
+    blaseballBetOptimizer.py coins <coins> maxbet <maxbet> [-s season] [-d day]
+
+Options:
+  -h --help     Show this screen.
+  -d --day      set day
+  -s --season   set season
+
+
+"""
+
 ## Blaseball Bet Odds Optimizer ##
 import math
 import numpy
 import requests
 import re
+
+from docopt import docopt
 
 #TODO: add auth (with selenium?) so can get number of coins, max bet automatically
 
@@ -29,79 +44,72 @@ def get_odds(day, season):
     js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
     return [(max(game["homeOdds"], game["awayOdds"])*100) for game in js]
 
-# def get_odds(day, season):
-#     day, season = day-1, season-1
-#     js = requests.get("https://www.blaseball.com/database/games", params={"day":day, "season":season}).json()
+def main(coins, currentMaxBet, day=None, season=None):
+    if not day and not season:
+        day, season = get_day_season()
+    print("This is season {}, day {}".format(season, day))
+    oddsDict = get_odds_dict(day, season)
+    gameOdds = get_odds(day, season)
+    # coins =   10979
+    # currentMaxBet = 640
+    EVMode = True
 
-#     home_odds = [(game["homeOdds"]*100, game["homeTeamName"]) for game in js]
-#     away_odds = [(game["awayOdds"]*100, game["awayTeamName"]) for game in js]
-#     odds_dict = {i[0]:i[1] for i in home_odds+away_odds}
+    # Pre-Allocating Arrays
+    gameOddsEV = ['0'] * len(gameOdds)
+    gameBetsSortedBeg = ['0'] * len(gameOdds)
+    gameBets = ['0'] * len(gameOdds)
+    totalCoins = coins
+    minBet = 0 # Used when EV mode set to False
 
-#     odds_list = [(max(game["homeOdds"], game["awayOdds"])*100) for game in js]
+    # Determine game-set bet order, so high games get max bid
+    gameOrder = numpy.argsort(gameOdds)
+    gameOrder = gameOrder[::-1]
+    # gameSorted = sorted(gameOdds)
 
-day, season = get_day_season()
-print("This is season {}, day {}".format(season, day))
-oddsDict = get_odds_dict(day, season)
-# for i in oddsDict.items():
-#     print(i)
-gameOdds = get_odds(day, season)
-# for i in gameOdds:
-#     print(i)
-coins =  7048
-currentMaxBet = 600
-EVMode = True
+    if EVMode == False:
+        HighRank = 70
+        # Determining bet amounts here
+        logCoEf = (1 - minBet)/(math.log1p(HighRank-50))
+        print("Log Co-Efficient: " + str(logCoEf))
+        for index in range(0,len(gameOdds)):
+            gameBets[index] = math.floor( currentMaxBet * ((logCoEf*math.log1p(gameOdds[index] - 50)) + minBet))
+            if gameBets[index] > currentMaxBet:
+                gameBets[index] = currentMaxBet
+        gameBetsSorted = sorted(gameBets, reverse = True)
 
-# Pre-Allocating Arrays
-gameOddsEV = ['0'] * len(gameOdds)
-gameBetsSortedBeg = ['0'] * len(gameOdds)
-gameBets = ['0'] * len(gameOdds)
-totalCoins = coins
-minBet = 0 # Used when EV mode set to False
+    if EVMode == True:
+        EVmax = (2 - (355*10**-6)*(math.pow((100*(0.77-0.5)), 2.045)))*(0.77) - 1
+        EVmin = 0
+        EVrange = EVmax - EVmin
+        for index in range(0,len(gameOdds)):
+            # print(gameOdds[index])
+            gameOddsEV[index] = (2 - (355*10**-6)*(math.pow((100*(gameOdds[index]/100 - 0.5)), 2.045)))*(gameOdds[index]/100) - 1
+            gameBets[index] = math.floor(currentMaxBet*(gameOddsEV[index]/EVrange))
+            if gameBets[index] > currentMaxBet:
+                gameBets[index] = currentMaxBet
+        gameBetsSorted = sorted(gameBets, reverse = True)
 
-# Determine game-set bet order, so high games get max bid
-gameOrder = numpy.argsort(gameOdds)
-gameOrder = gameOrder[::-1]
-gameSorted = sorted(gameOdds)
+    for index in range(0, len(gameOdds)):
+        if totalCoins < gameBetsSorted[index]:
+            gameBetsSortedBeg[index] = totalCoins
+            gameBetsSorted[index] = totalCoins
+        if (totalCoins) <= 0:
+            gameBetsSortedBeg[index] = 'Beg'
+        totalCoins -= gameBetsSorted[index]
+        #print('Total coins is now: ' + str(totalCoins))
 
-if EVMode == False:
-    HighRank = 70
-    # Determining bet amounts here
-    logCoEf = (1 - minBet)/(math.log1p(HighRank-50))
-    print("Log Co-Efficient: " + str(logCoEf))
+    # Output
+    print('\nGame\tOdds\tBet')
+    print('|||||||||||||||||||')
     for index in range(0,len(gameOdds)):
-        gameBets[index] = math.floor( currentMaxBet * ((logCoEf*math.log1p(gameOdds[index] - 50)) + minBet))
-        if gameBets[index] > currentMaxBet:
-            gameBets[index] = currentMaxBet
-    gameBetsSorted = sorted(gameBets, reverse = True)
+        if gameBetsSortedBeg[index] == 'Beg':
+            gameBetsSorted[index] = gameBetsSortedBeg[index]
+            print(f"{gameOrder[index] + 1}" +"\t"+ f"{gameOdds[gameOrder[index]]}" + '\t' + f"{gameBetsSorted[index]}")
+        else:
+            print(str(oddsDict[gameOdds[gameOrder[index]]]) + '\t' + str(gameBetsSorted[index]))
 
-if EVMode == True:
-    EVmax = (2 - (355*10**-6)*(math.pow((100*(0.77-0.5)), 2.045)))*(0.77) - 1
-    EVmin = 0
-    EVrange = EVmax - EVmin
-    # print(gameOdds)
-    for index in range(0,len(gameOdds)):
-        # print(gameOdds[index])
-        gameOddsEV[index] = (2 - (355*10**-6)*(math.pow((100*(gameOdds[index]/100 - 0.5)), 2.045)))*(gameOdds[index]/100) - 1
-        gameBets[index] = math.floor(currentMaxBet*(gameOddsEV[index]/EVrange))
-        if gameBets[index] > currentMaxBet:
-            gameBets[index] = currentMaxBet
-    gameBetsSorted = sorted(gameBets, reverse = True)
 
-for index in range(0, len(gameOdds)):
-    if totalCoins < gameBetsSorted[index]:
-        gameBetsSortedBeg[index] = totalCoins
-        gameBetsSorted[index] = totalCoins
-    if (totalCoins) <= 0:
-        gameBetsSortedBeg[index] = 'Beg'
-    totalCoins -= gameBetsSorted[index]
-    #print('Total coins is now: ' + str(totalCoins))
-
-# Output
-print('\nGame\tOdds\tBet')
-print('|||||||||||||||||||')
-for index in range(0,len(gameOdds)):
-    if gameBetsSortedBeg[index] == 'Beg':
-        gameBetsSorted[index] = gameBetsSortedBeg[index]
-        print(f"{gameOrder[index] + 1}" +"\t"+ f"{gameOdds[gameOrder[index]]}" + '\t' + f"{gameBetsSorted[index]}")
-    else:
-        print(str(oddsDict[gameOdds[gameOrder[index]]]) + '\t' + str(gameBetsSorted[index]))
+if __name__ == "__main__":
+    args = docopt(__doc__)
+    # print(args)
+    main(args["<coins>"], args["<maxbet>"], args["--day"], args["--season"])
