@@ -1,7 +1,7 @@
 """ Blaseball Bet Optimizer
 
 Usage:
-    blaseballBetOptimizer.py coins <coins> maxbet <maxbet> [-s season] [-d day]
+    blaseballBetOptimizer.py coins <coins> maxbet <maxbet> [-s <season>] [-d <day>]
 
 Options:
   -h --help     Show this screen.
@@ -34,15 +34,11 @@ def get_day_season():
     # this returns the "actual" name of the day/season
 
 def get_odds_dict(js, day, season):
-    # TODO: make so that this page is not downloaded twice between this one and get_odds()
-    # js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
     home_odds = [(game["homeOdds"]*100, game["homeTeamName"]) for game in js]
     away_odds = [(game["awayOdds"]*100, game["awayTeamName"]) for game in js]
     return {i[0]:i[1] for i in home_odds+away_odds}
 
 def get_odds(js, day, season):
-    #remember season  and day are counted from 0, so are 1 less than the actual number
-    # js = requests.get("https://www.blaseball.com/database/games", params={"day":day-1, "season":season-1}).json()
     return [(max(game["homeOdds"], game["awayOdds"])*100) for game in js]
 
 def main(coins, currentMaxBet, day=None, season=None):
@@ -108,10 +104,10 @@ def main(coins, currentMaxBet, day=None, season=None):
             gameBetsSorted[index] = gameBetsSortedBeg[index]
             print(f"{gameOrder[index] + 1}" +"\t"+ f"{gameOdds[gameOrder[index]]}" + '\t' + f"{gameBetsSorted[index]}")
         else:
-            print(str(oddsDict[gameOdds[gameOrder[index]]]) + '\t' + str(gameBetsSorted[index]))
+            print('{0: <25} {1}'.format(str(oddsDict[gameOdds[gameOrder[index]]]), str(gameBetsSorted[index])))
 
 
 if __name__ == "__main__":
     args = docopt(__doc__)
     # print(args)
-    main(args["<coins>"], args["<maxbet>"], args["--day"], args["--season"])
+    main(int(args["<coins>"]), int(args["<maxbet>"]), int(args["<day>"]), int(args["<season>"]))
